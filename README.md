@@ -1,2 +1,6 @@
 # Cloud_Portfolio_ManyMethods
 This project demonstrates various methods to create a web application using cloud services, ranging from less managed (cloud provider maintained) to more managed (maintained by us) solutions. It provides a comprehensive guide to help you understand the different approaches and choose the best one for your needs.
+
+## [Cloud Managed Service (AWS)](CLOUD_MANAGED%20SERVICE/README.md)
+![AWS](../Cloud_WebApp_Methods/CLOUD_MANAGED%20SERVICE/CLOUD_Serve.drawio.png)
+A serverless architecture using AWS services to handle user requests, process data, and store it efficiently. The architecture includes components such as API Gateway, S3 Bucket, Lambda Function, and DynamoDB. The data flow involves the user sending a JSON object to the API Gateway, which interacts with the S3 Bucket and forwards the data to the Lambda function for processing and storage in DynamoDB. The document also includes a detailed explanation of the Lambda function (main.go) and an HTML script that fetches the user's public IP address and sends it to the Lambda function.
