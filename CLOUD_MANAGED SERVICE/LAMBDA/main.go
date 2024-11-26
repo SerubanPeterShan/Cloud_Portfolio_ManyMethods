@@ -4,78 +4,70 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"net/http"
 	"os"
-	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
 
-var mongoClient *mongo.Client
+var dynamoClient *dynamodb.DynamoDB
 
-func enableCors(w *http.ResponseWriter) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
+type IPData struct {
+	IP string `json:"ip"`
 }
 
-func saveIPHandler(w http.ResponseWriter, r *http.Request) {
-	enableCors(&w)
-	if r.Method != "POST" {
-		http.Error(w, "Only POST method is allowed!", http.StatusMethodNotAllowed)
-		return
-	}
+func saveIPHandler(ctx context.Context, event events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	log.Printf("Received request body: %s", event.Body)
 
-	var data map[string]interface{}
-	err := json.NewDecoder(r.Body).Decode(&data)
+	var data IPData
+	err := json.Unmarshal([]byte(event.Body), &data)
 	if err != nil {
-		log.Printf("JSON decode error: %v", err)
-		http.Error(w, "Error parsing the JSON request!", http.StatusBadRequest)
-		return
+		log.Printf("Error unmarshalling request body: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid request body"}, nil
 	}
 
-	data["time"] = time.Now().Format("2006-01-02 15:04:05")
+	if data.IP == "" {
+		log.Printf("IP address is empty")
+		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "IP address is empty"}, nil
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	collection := mongoClient.Database("userData").Collection("IPs")
-	_, err = collection.InsertOne(ctx, data)
+	av, err := dynamodbattribute.MarshalMap(data)
 	if err != nil {
-		log.Printf("MongoDB insert error: %v", err)
-		http.Error(w, "Error saving data to MongoDB", http.StatusInternalServerError)
-		return
+		log.Printf("DynamoDB marshal error: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Error marshalling data"}, nil
 	}
+
+	tableName := os.Getenv("DYNAMODB_TABLE_NAME")
+	if tableName == "" {
+		log.Printf("DynamoDB table name not set")
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "DynamoDB table name not set"}, nil
+	}
+
+	input := &dynamodb.PutItemInput{
+		TableName: aws.String(tableName),
+		Item:      av,
+	}
+
+	_, err = dynamoClient.PutItemWithContext(ctx, input)
+	if err != nil {
+		log.Printf("DynamoDB insert error: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Error saving data to DynamoDB"}, nil
+	}
+
+	return events.APIGatewayProxyResponse{StatusCode: 200, Body: "Data saved successfully"}, nil
 }
 
 func main() {
-	// Get MongoDB URI from environment variable
-	mongoURI := os.Getenv("MONGODB_URI")
-	if mongoURI == "" {
-		mongoURI = "mongodb://database:27017" // Use container service name
-	}
+	// Initialize DynamoDB client
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String("ca-central-1"),
+	}))
+	dynamoClient = dynamodb.New(sess)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	var err error
-	mongoClient, err = mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
-	if err != nil {
-		log.Fatal("MongoDB connection error:", err)
-	}
-
-	// Verify connection
-	err = mongoClient.Ping(ctx, nil)
-	if err != nil {
-		log.Fatal("MongoDB ping error:", err)
-	}
-	log.Println("Connected to MongoDB successfully!")
-
-	fs := http.FileServer(http.Dir("./templates"))
-	http.Handle("/", fs)
-	http.HandleFunc("/api/saveIP", saveIPHandler)
-
-	log.Println("Server starting on :80")
-	log.Fatal(http.ListenAndServe(":80", nil))
+	// Start Lambda handler
+	lambda.Start(saveIPHandler)
 }

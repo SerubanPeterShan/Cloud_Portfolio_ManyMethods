@@ -139,19 +139,23 @@
 </head>
 <body>
     <script>
+        // Fetch the public IP address using an external service
         fetch('https://api.ipify.org?format=json')
-        .then(Response => Response.json())
-        .then(data => {
-            fetch('http://localhost/api/saveIP', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({IP: data.ip}),
-            });
-        })
-        .catch(error => console.log('Error: ', error))
-
+            .then(response => response.json())
+            .then(data => {
+                // Send the IP address to the Lambda function
+                fetch('https://gif7m2ahf4.execute-api.ca-central-1.amazonaws.com/SaveIP', { // Replace with your API Gateway endpoint
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip: data.ip }),
+                })
+                .then(response => response.json())
+                .then(data => console.log('Success:', data))
+                .catch(error => console.error('Error:', error));
+            })
+            .catch(error => console.error('Error:', error));
     </script>
     <header>
         <h1>My Portfolio</h1>
