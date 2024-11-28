@@ -139,6 +139,7 @@
 </head>
 <body>
     <script>
+<<<<<<< HEAD
         // Fetch the public IP address using an external service
         fetch('https://api.ipify.org?format=json')
             .then(response => response.json())
@@ -156,6 +157,21 @@
                 .catch(error => console.error('Error:', error));
             })
             .catch(error => console.error('Error:', error));
+=======
+        fetch('https://api.ipify.org?format=json')
+        .then(Response => Response.json())
+        .then(data => {
+            fetch('https://newsloop.xyz/api/saveIP', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({IP: data.ip}),
+            });
+        })
+        .catch(error => console.log('Error: ', error))
+
+>>>>>>> b453b2d6133a61c2126d8f846d52dc0298c47fe7
     </script>
     <header>
         <h1>My Portfolio</h1>
